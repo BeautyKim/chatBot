@@ -1,0 +1,22 @@
+# 1. Python 관련
+__pycache__/
+*.py[cod]
+*$py.class
+./.venv/
+
+# 2. AI 모델 관련 (중요: 용량이 수 GB이므로 절대 올리면 안 됩니다)
+/Bllossom-3B/
+/my-custom-bllossom/
+/adapters/
+
+# 3. 데이터 및 로그 관련 (학습 시 생성되는 임시 파일들)
+/data/*.jsonl
+*.log
+qa_data.csv
+
+# 4. 환경 변수 및 설정 (비밀번호나 API 키가 포함될 수 있음)
+.env
+
+# 5. OS 관련
+.DS_Store
+Thumbs.db

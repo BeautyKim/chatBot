@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI - Desktop</title>
+    <style>
+        :root {
+            --bg-color: #f5f5f7;
+            --card-bg: #ffffff;
+            --primary-blue: #0071e3;
+            --text-main: #1d1d1f;
+            --text-sub: #6e6e73;
+            --border-color: #d2d2d7;
+            --sidebar-width: 320px;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* 메인 레이아웃: 사이드바 + 중앙 패널 */
+        .app-layout {
+            display: flex;
+            height: 100vh;
+            max-width: 1440px;
+            margin: 0 auto;
+            background: white;
+        }
+
+        /* 왼쪽 채팅 구역 */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border-color);
+            background: white;
+            z-index: 10;
+        }
+
+        header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            letter-spacing: -0.5px;
+        }
+
+        #chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            background: #fff;
+        }
+
+        /* 오른쪽 사이드바 (설정/통계) */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #fbfbfd;
+            padding: 25px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .widget-card h3 {
+            margin: 0 0 15px 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 설정 아이템 스타일 */
+        .setting-item {
+            margin-bottom: 22px;
+        }
+
+        .setting-label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .setting-label-row span:first-child {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .setting-val {
+            font-family: monospace;
+            color: var(--primary-blue);
+            font-weight: bold;
+            background: #eef7ff;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .setting-desc {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            line-height: 1.4;
+            margin-top: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            height: 5px;
+            appearance: none;
+            background: #ddd;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary-blue);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 통계 스타일 */
+        .stat-box {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .stat-total {
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        /* 말풍선 스타일 */
+        .msg {
+            max-width: 80%;
+            padding: 16px 22px;
+            border-radius: 20px;
+            font-size: 1rem;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .user {
+            align-self: flex-end;
+            background-color: var(--primary-blue);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0, 113, 227, 0.2);
+        }
+
+        .ai {
+            align-self: flex-start;
+            background-color: #f2f2f7;
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        /* 입력바 스타일 */
+        .input-sticky {
+            padding: 30px 40px 40px;
+            background: white;
+            border-top: 1px solid #f0f0f2;
+        }
+
+        .input-bar {
+            display: flex;
+            align-items: center;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 28px;
+            padding: 10px 20px;
+            transition: border-color 0.3s;
+        }
+
+        .input-bar:focus-within {
+            border-color: var(--primary-blue);
+        }
+
+        #user-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 5px 10px;
+            font-size: 1.05rem;
+        }
+
+        .send-btn {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+            transform: scale(1.05);
+        }
+
+        /* 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d2d2d7;
+            border-radius: 10px;
+        }
+    </style>
+    <!-- Markdown & Syntax Highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+            font-size: 0.85rem;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        code {
+            font-family: inherit;
+            background: rgba(0, 113, 227, 0.1);
+            color: var(--primary-blue);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            font-weight: normal;
+        }
+
+        .ai p {
+            margin: 10px 0;
+        }
+
+        .ai ul,
+        .ai ol {
+            padding-left: 25px;
+            margin: 10px 0;
+        }
+
+        .ai li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <div class="chat-container">
+            <header>
+                <h2>🤖 AI Desktop</h2>
+            </header>
+
+            <div id="chat-box">
+                <div class="msg ai">안녕하세요! 코딩이나 분석 등 무엇이든 물어보세요. 마크다운과 코드 블록을 지원합니다.</div>
+            </div>
+
+            <div class="input-sticky">
+                <div class="input-bar">
+                    <input type="text" id="user-input" placeholder="여기에 질문을 입력하세요..."
+                        onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button class="send-btn" onclick="sendMessage()">↑</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="widget-card">
+                <h3>⚙️ Inference Settings</h3>
+                <div class="setting-item">
+                    <div class="setting-label-row">
+                        <span>Temperature</span>
+                        <span class="setting-val" id="v-temp">0.7</span>
+                    </div>
+                    <input type="range" id="p-temp" min="0" max="1.5" step="0.1" value="0.7"
+                        oninput="document.getElementById('v-temp').innerText=this.value">
+                    <div class="setting-desc">낮을수록 논리적이고 일관된 답변을, 높을수록 창의적이고 다양한 답변을 내놓습니다.</div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-label-row">
+                        <span>Max Tokens</span>
+                        <span class="setting-val" id="v-tokens">512</span>
+                    </div>
+                    <input type="range" id="p-tokens" min="64" max="1024" step="64" value="512"
+                        oninput="document.getElementById('v-tokens').innerText=this.value">
+                    <div class="setting-desc">답변의 최대 길이를 제한합니다. 값이 클수록 긴 설명이 가능하지만 생성 시간은 더 소요됩니다.</div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-label-row">
+                        <span>Top-P Sampling</span>
+                        <span class="setting-val" id="v-top-p">0.9</span>
+                    </div>
+                    <input type="range" id="p-top-p" min="0.1" max="1.0" step="0.1" value="0.9"
+                        oninput="document.getElementById('v-top-p').innerText=this.value">
+                    <div class="setting-desc">누적 확률 임계값을 정해 상위 단어 그룹만 고려합니다. 정교한 답변 품질 유지에 쓰입니다.</div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-label-row">
+                        <span>Repetition Penalty</span>
+                        <span class="setting-val" id="v-rep">1.1</span>
+                    </div>
+                    <input type="range" id="p-rep" min="1.0" max="1.5" step="0.05" value="1.1"
+                        oninput="document.getElementById('v-rep').innerText=this.value">
+                    <div class="setting-desc">AI가 같은 단어나 문장을 반복해서 말하는 현상을 패널티를 주어 방지합니다.</div>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <h3>📊 Usage & Cost</h3>
+                <div class="stat-box">
+                    <div class="stat-line">
+                        <span>이번 답변 토큰</span>
+                        <span id="cur-total" style="color:var(--primary-blue); font-weight:700;">0</span>
+                    </div>
+                    <div class="stat-line">
+                        <span>누적 사용량</span>
+                        <span id="total-tokens">0 Tokens</span>
+                    </div>
+                    <div class="stat-line stat-total">
+                        <span>누적 소모 비용</span>
+                        <span id="total-credit" style="color:#d70015;">0.00원</span>
+                    </div>
+                    <div class="setting-desc"
+                        style="margin-top: 10px; text-align: right; border-top: 1px solid #f0f0ff; padding-top: 8px;">
+                        * 계산법: 1토큰당 0.01원 기준<br>
+                        (총 소모 비용 = 누적 토큰 × 0.01)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let accumulatedTokens = 0;
+        const COST_PER_TOKEN = 0.01;
+
+        async function sendMessage() {
+            const inputField = document.getElementById("user-input");
+            const chatBox = document.getElementById("chat-box");
+            const message = inputField.value;
+            if (!message) return;
+
+            const params = {
+                max_tokens: parseInt(document.getElementById("p-tokens").value),
+                temp: parseFloat(document.getElementById("p-temp").value),
+                top_p: parseFloat(document.getElementById("p-top-p").value),
+                repetition_penalty: parseFloat(document.getElementById("p-rep").value)
+            };
+
+            chatBox.innerHTML += `<div class="msg user">${message}</div>`;
+            inputField.value = "";
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const response = await fetch("/v1/chat/completions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        messages: [
+                            { "role": "system", "content": "당신은 친절하고 똑똑한 사내 챗봇입니다. 질문에 문맥을 파악하여 자연스럽게 대답하세요." },
+                            { "role": "user", "content": message }
+                        ],
+                        ...params
+                    })
+                });
+
+                const aiDiv = document.createElement("div");
+                aiDiv.className = "msg ai";
+                aiDiv.innerHTML = "...";
+                chatBox.appendChild(aiDiv);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    if (chunk.includes("[METADATA]")) {

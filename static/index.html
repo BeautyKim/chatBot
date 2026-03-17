@@ -115,6 +115,12 @@
             border-radius: 4px;
         }
 
+        .setting-val-unit {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            margin-left: 2px;
+        }
+
         .setting-desc {
             font-size: 0.75rem;
             color: var(--text-sub);
@@ -412,7 +418,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         messages: [
-                            { "role": "system", "content": "당신은 친절하고 똑똑한 사내 챗봇입니다. 질문에 문맥을 파악하여 자연스럽게 대답하세요." },
+                            { "role": "system", "content": "당신은 조수입니다." },
                             { "role": "user", "content": message }
                         ],
                         ...params
@@ -434,3 +440,36 @@
 
                     const chunk = decoder.decode(value, { stream: true });
                     if (chunk.includes("[METADATA]")) {
+                        const parts = chunk.split("[METADATA]");
+                        if (parts[0]) {
+                            fullText += parts[0];
+                            aiDiv.innerHTML = marked.parse(fullText);
+                        }
+                        try {
+                            const metadata = JSON.parse(parts[1]);
+                            updateUsageStats(metadata);
+                        } catch(e) {}
+                    } else {
+                        fullText += chunk;
+                        aiDiv.innerHTML = marked.parse(fullText);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
+                }
+                // 최종 응답 후 하이라이팅 적용
+                aiDiv.querySelectorAll('pre code').forEach((el) => {
+                    hljs.highlightElement(el);
+                });
+            } catch (error) {
+                chatBox.innerHTML += `<div style="color:red; font-size: 0.8rem; padding: 10px;">⚠️ 오류: ${error.message}</div>`;
+            }
+        }
+
+        function updateUsageStats(data) {
+            document.getElementById("cur-total").innerText = data.total_tokens;
+            accumulatedTokens += data.total_tokens;
+            document.getElementById("total-tokens").innerText = accumulatedTokens.toLocaleString() + " Tokens";
+            document.getElementById("total-credit").innerText = (accumulatedTokens * COST_PER_TOKEN).toLocaleString(undefined, {minimumFractionDigits: 2}) + "원";
+        }
+    </script>
+</body>
+</html>

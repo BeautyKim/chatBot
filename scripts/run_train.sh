@@ -15,13 +15,20 @@ echo "========================================"
 echo "🚀 1단계: MLX 파인튜닝(학습)을 시작합니다..."
 echo "========================================"
 
+# [Tip] 만약 이어서 학습하고 싶다면 rm -rf 명령어를 주석 처리하고,
+# 아래 mlx_lm.lora 명령어에 --resume-adapter-file ./adapters/adapters.safetensors 옵션을 추가하세요.
+
+rm -rf ./adapters
+mkdir -p ./adapters
+
 mlx_lm.lora \
     --model ./Bllossom-3B \
     --train \
     --data ./data \
-    --iters 300 \
+    --iters 1000 \
     --batch-size 1 \
     --num-layers 4
+    # --resume-adapter-file ./adapters/adapters.safetensors
 
 echo "✅ 1단계 완료! adapters 폴더가 생성되었습니다."
 echo ""

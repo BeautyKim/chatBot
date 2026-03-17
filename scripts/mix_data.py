@@ -11,7 +11,7 @@ from datasets import load_dataset
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def load_koalpaca_data(sample_size: int = 1000) -> List[Dict]:
+def load_koalpaca_data(sample_size: int = 500) -> List[Dict]:
     """KoAlpaca 데이터셋을 로드하고 변환합니다."""
     logger.info(f"📥 KoAlpaca 데이터셋을 다운로드 중... (샘플 크기: {sample_size})")
     try:
@@ -31,7 +31,7 @@ def load_koalpaca_data(sample_size: int = 1000) -> List[Dict]:
         logger.error(f"KoAlpaca 로드 실패: {e}")
         return []
 
-def load_local_csv(file_path: str, oversample: int = 10) -> List[Dict]:
+def load_local_csv(file_path: str, oversample: int = 20) -> List[Dict]:
     """로컬 CSV 파일을 로드하고 오버샘플링합니다."""
     if not os.path.exists(file_path):
         logger.warning(f"⚠️ {file_path} 파일이 존재하지 않습니다. 건너뜁니다.")
@@ -69,7 +69,7 @@ def save_jsonl(data: List[Dict], output_path: str):
 
 def main():
     # 설정
-    KOALPACA_SAMPLE_SIZE = 1000
+    KOALPACA_SAMPLE_SIZE = 500
     LOCAL_DATA_PATH = 'qa_data.csv'
     TRAIN_OUTPUT = 'data/train.jsonl'
     VALID_OUTPUT = 'data/valid.jsonl'

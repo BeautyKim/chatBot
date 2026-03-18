@@ -76,12 +76,21 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 30px;
+            gap: 20px;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .widget-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
         }
 
         .widget-card h3 {
             margin: 0 0 15px 0;
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: 700;
             color: #333;
             display: flex;
@@ -245,6 +254,117 @@
             transform: scale(1.05);
         }
 
+        /* 모델 선택 드롭다운 스타일 (Perplexity 스타일) */
+        .model-selector-container {
+            position: relative;
+            margin-right: 10px;
+        }
+
+        .model-btn {
+            background: #f0f0f2;
+            border: none;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.3s;
+            color: var(--text-main);
+        }
+
+        .model-btn:hover {
+            background: #e5e5e7;
+        }
+
+        .model-dropdown {
+            position: absolute;
+            bottom: 50px;
+            left: 0;
+            width: 240px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 1000;
+        }
+
+        .model-dropdown.show {
+            display: flex;
+            animation: slideUp 0.2s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(10px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .model-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .model-item:hover {
+            background: #f2f2f7;
+        }
+
+        .model-item.active {
+            background: #eef7ff;
+            color: var(--primary-blue);
+        }
+
+        .model-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .model-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .model-desc {
+            font-size: 0.7rem;
+            color: var(--text-sub);
+        }
+
+        .badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #eee;
+            font-weight: bold;
+        }
+
+        .badge.local {
+            background: #e1f5fe;
+            color: #01579b;
+        }
+
+        .badge.pro {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
         /* 스크롤바 */
         ::-webkit-scrollbar {
             width: 6px;
@@ -293,11 +413,11 @@
             border-radius: 50%;
         }
 
-        input:checked + .slider-toggle {
+        input:checked+.slider-toggle {
             background-color: var(--primary-blue);
         }
 
-        input:checked + .slider-toggle:before {
+        input:checked+.slider-toggle:before {
             transform: translateX(20px);
         }
     </style>
@@ -364,7 +484,36 @@
 
             <div class="input-sticky">
                 <div class="input-bar">
-                    <input type="text" id="user-input" placeholder="여기에 질문을 입력하세요..."
+                    <div class="model-selector-container">
+                        <button class="model-btn" onclick="toggleModelMenu()">
+                            <span id="selected-model-name">Local Engine</span>
+                            <small>⌵</small>
+                        </button>
+                        <div id="model-menu" class="model-dropdown">
+                            <div class="model-item active" onclick="selectModel(this, 'local', 'Local Engine')">
+                                <div class="model-info">
+                                    <span class="model-title">Local Engine (MLX)</span>
+                                    <span class="model-desc">기존 학습된 로컬 모델을 사용합니다.</span>
+                                </div>
+                                <span class="badge local">Core</span>
+                            </div>
+                            <div class="model-item" onclick="selectModel(this, 'gemini-2.5-flash', 'Gemini 2.5')">
+                                <div class="model-info">
+                                    <span class="model-title">Gemini 2.5 Flash (new)</span>
+                                    <span class="model-desc">가장 강력한 성능과 넓은 컨텍스트 지원</span>
+                                </div>
+                                <span class="badge">Pro</span>
+                            </div>
+                            <div class="model-item" onclick="selectModel(this, 'gemini-3.1-lite', 'Gemini 3.1')">
+                                <div class="model-info">
+                                    <span class="model-title">Gemini 3.1 Flash-Lite</span>
+                                    <span class="model-desc">비용 효율적이고 매우 빠른 응답속도</span>
+                                </div>
+                                <span class="badge">Lite</span>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="text" id="user-input" placeholder="검색 모드를 보려면 /를 입력하세요..."
                         onkeypress="if(event.key==='Enter') sendMessage()">
                     <button class="send-btn" onclick="sendMessage()">↑</button>
                 </div>
@@ -372,66 +521,33 @@
         </div>
 
         <div class="sidebar">
-            <!-- 파일 업로드 추가 -->
-            <div class="widget-card" style="border-bottom:1px solid #eee; padding-bottom:20px;">
+            <!-- 1. 파일 업로드 섹션 -->
+            <div class="widget-card">
                 <h3>📁 File Upload (RAG)</h3>
-                <div class="setting-item">
-                    <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)" multiple>
-                    <button class="send-btn" style="width:100%; border-radius:8px; height:auto; padding:10px;" onclick="document.getElementById('file-input').click()">
-                        파일 선택 (여러개 가능)
-                    </button>
-                    <div id="file-name-display" class="setting-desc" style="margin-top:8px; font-weight:bold; color:var(--primary-blue);">
-                        선택된 파일 없음
-                    </div>
+                <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)" multiple>
+                <button class="send-btn"
+                    style="width:100%; border-radius:10px; height:auto; padding:12px; font-weight:600;"
+                    onclick="document.getElementById('file-input').click()">
+                    파일 선택 (여러개 가능)
+                </button>
+                <div id="file-name-display" class="setting-desc"
+                    style="margin-top:10px; font-weight:bold; color:var(--primary-blue); text-align:center;">
+                    선택된 파일 없음
                 </div>
-                <button id="upload-btn" class="send-btn" style="width:100%; border-radius:8px; height:auto; padding:10px; background:var(--text-main);" onclick="uploadFile()" disabled>
+                <button id="upload-btn" class="send-btn"
+                    style="width:100%; border-radius:10px; height:auto; padding:12px; margin-top:10px; background:var(--text-main); font-weight:600;"
+                    onclick="uploadFile()" disabled>
                     업로드 및 인덱싱
                 </button>
-                <div id="upload-status" class="setting-desc" style="margin-top:8px; text-align:center;">
-                    PDF, TXT, CSV 파일을 업로드할 수 있습니다.
+                <div id="upload-status" class="setting-desc" style="margin-top:10px; text-align:center;">
+                    PDF, TXT, CSV 파일을 분석합니다.
                 </div>
             </div>
 
+            <!-- 2. 설정 섹션 -->
             <div class="widget-card">
-                <h3>⚙️ Inference Settings</h3>
-                <div class="setting-item">
-                    <div class="setting-label-row">
-                        <span>Temperature</span>
-                        <span class="setting-val" id="v-temp">0.7</span>
-                    </div>
-                    <input type="range" id="p-temp" min="0" max="1.5" step="0.1" value="0.7"
-                        oninput="document.getElementById('v-temp').innerText=this.value">
-                    <div class="setting-desc">낮을수록 논리적이고 일관된 답변을, 높을수록 창의적이고 다양한 답변을 내놓습니다.</div>
-                </div>
-                <div class="setting-item">
-                    <div class="setting-label-row">
-                        <span>Max Tokens</span>
-                        <span class="setting-val" id="v-tokens">512</span>
-                    </div>
-                    <input type="range" id="p-tokens" min="64" max="1024" step="64" value="512"
-                        oninput="document.getElementById('v-tokens').innerText=this.value">
-                    <div class="setting-desc">답변의 최대 길이를 제한합니다. 값이 클수록 긴 설명이 가능하지만 생성 시간은 더 소요됩니다.</div>
-                </div>
-                <div class="setting-item">
-                    <div class="setting-label-row">
-                        <span>Top-P Sampling</span>
-                        <span class="setting-val" id="v-top-p">0.9</span>
-                    </div>
-                    <input type="range" id="p-top-p" min="0.1" max="1.0" step="0.1" value="0.9"
-                        oninput="document.getElementById('v-top-p').innerText=this.value">
-                    <div class="setting-desc">누적 확률 임계값을 정해 상위 단어 그룹만 고려합니다. 정교한 답변 품질 유지에 쓰입니다.</div>
-                </div>
-                <div class="setting-item">
-                    <div class="setting-label-row">
-                        <span>Repetition Penalty</span>
-                        <span class="setting-val" id="v-rep">1.1</span>
-                    </div>
-                    <input type="range" id="p-rep" min="1.0" max="1.5" step="0.05" value="1.1"
-                        oninput="document.getElementById('v-rep').innerText=this.value">
-                    <div class="setting-desc">AI가 같은 단어나 문장을 반복해서 말하는 현상을 패널티를 주어 방지합니다.</div>
-                </div>
-                <!-- RAG & Web Search Toggle -->
-                <div class="setting-item" style="border-top:1px solid #eee; padding-top:20px;">
+                <h3>⚙️ Search & User</h3>
+                <div class="setting-item" style="margin-bottom: 20px;">
                     <div class="setting-label-row">
                         <span>External Web Search</span>
                         <label class="switch">
@@ -439,13 +555,23 @@
                             <span class="slider-toggle round"></span>
                         </label>
                     </div>
-                    <div class="setting-desc">내부 데이터에 답이 없을 경우 실시간 웹 검색(DuckDuckGo)을 통해 답변을 보완합니다.</div>
+                    <div class="setting-desc">Tavily를 통해 실시간 웹 정보를 가져옵니다.</div>
+                </div>
+
+                <div id="v2-settings-group" style="display:none; border-top: 1px solid #eee; padding-top: 15px;">
+                    <div class="setting-item">
+                        <div class="setting-label-row"><span style="font-size:0.8rem; color:var(--text-sub);">User ID
+                                (Billing)</span></div>
+                        <input type="text" id="p-user-id" value="guest_user"
+                            style="width:100%; border:1px solid #d2d2d7; border-radius:8px; padding:8px; font-size:0.9rem; box-sizing:border-box;">
+                    </div>
                 </div>
             </div>
 
+            <!-- 3. 통계 섹션 -->
             <div class="widget-card">
                 <h3>📊 Usage & Cost</h3>
-                <div class="stat-box">
+                <div class="stat-box" style="border:none; padding:0;">
                     <div class="stat-line">
                         <span>이번 답변 토큰</span>
                         <span id="cur-total" style="color:var(--primary-blue); font-weight:700;">0</span>
@@ -454,14 +580,13 @@
                         <span>누적 사용량</span>
                         <span id="total-tokens">0 Tokens</span>
                     </div>
-                    <div class="stat-line stat-total">
+                    <div class="stat-line"
+                        style="border-top:1px solid #eee; padding-top:10px; margin-top:10px; font-weight:bold;">
                         <span>누적 소모 비용</span>
                         <span id="total-credit" style="color:#d70015;">0.00원</span>
                     </div>
-                    <div class="setting-desc"
-                        style="margin-top: 10px; text-align: right; border-top: 1px solid #f0f0ff; padding-top: 8px;">
-                        * 계산법: 1토큰당 0.01원 기준<br>
-                        (총 소모 비용 = 누적 토큰 × 0.01)
+                    <div class="setting-desc" style="margin-top:10px; font-size:0.7rem;">
+                        * 1토큰당 0.01원 기준
                     </div>
                 </div>
             </div>
@@ -470,7 +595,32 @@
 
     <script>
         let accumulatedTokens = 0;
+        let selectedModelId = 'local';
         const COST_PER_TOKEN = 0.01;
+
+        function toggleModelMenu() {
+            document.getElementById("model-menu").classList.toggle("show");
+        }
+
+        function selectModel(element, id, name) {
+            selectedModelId = id;
+            document.getElementById("selected-model-name").innerText = name;
+            document.getElementById("model-menu").classList.remove("show");
+
+            // 모든 아이템 active 해제 후 선택된 것만 추가
+            document.querySelectorAll('.model-item').forEach(item => item.classList.remove('active'));
+            element.classList.add('active');
+
+            // 로컬 모델 아니면 v2 설정(User ID 등) 보여주기
+            document.getElementById("v2-settings-group").style.display = (id === 'local') ? 'none' : 'block';
+        }
+
+        // 클릭 외부 시 메뉴 닫기
+        window.onclick = function (event) {
+            if (!event.target.closest('.model-selector-container')) {
+                document.getElementById("model-menu").classList.remove("show");
+            }
+        }
 
         async function sendMessage() {
             const inputField = document.getElementById("user-input");
@@ -478,65 +628,80 @@
             const message = inputField.value;
             if (!message) return;
 
-            const params = {
-                max_tokens: parseInt(document.getElementById("p-tokens").value),
-                temp: parseFloat(document.getElementById("p-temp").value),
-                top_p: parseFloat(document.getElementById("p-top-p").value),
-                repetition_penalty: parseFloat(document.getElementById("p-rep").value),
-                enable_web_search: document.getElementById("p-web-search").checked
-            };
-
             chatBox.innerHTML += `<div class="msg user">${message}</div>`;
             inputField.value = "";
             chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
-                const response = await fetch("/v1/chat/completions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        messages: [
-                            { "role": "system", "content": "당신은 틸론(Tilon)의 전문가이자 충실한 조수입니다. 반드시 제공된 데이터(qa_data.csv)에 근거하여 답변하고, 모르는 내용이나 데이터에 없는 내용은 아는 척하지 말고 반드시 \"죄송하지만 해당 부분에 대해서는 정보를 가지고 있지 않습니다.\"라고 정중하게 답변하세요." },
-                            { "role": "user", "content": message }
-                        ],
-                        ...params
-                    })
-                });
-
                 const aiDiv = document.createElement("div");
                 aiDiv.className = "msg ai";
                 aiDiv.innerHTML = "...";
                 chatBox.appendChild(aiDiv);
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let fullText = "";
+                if (selectedModelId === 'local') {
+                    // Standard Core API (Local Engine) - Streaming
+                    const response = await fetch("/v1/chat/completions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            messages: [
+                                { "role": "system", "content": "당신은 틸론(Tilon)의 전문가입니다. 로컬 데이터에 기반하여 답변하세요." },
+                                { "role": "user", "content": message }
+                            ],
+                            enable_web_search: document.getElementById("p-web-search").checked
+                        })
+                    });
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let fullText = "";
 
-                    const chunk = decoder.decode(value, { stream: true });
-                    if (chunk.includes("[METADATA]")) {
-                        const parts = chunk.split("[METADATA]");
-                        if (parts[0]) {
-                            fullText += parts[0];
-                            aiDiv.innerHTML = marked.parse(fullText);
-                        }
-                        try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        const chunk = decoder.decode(value, { stream: true });
+                        if (chunk.includes("[METADATA]")) {
+                            const parts = chunk.split("[METADATA]");
+                            if (parts[0]) {
+                                fullText += parts[0];
+                                aiDiv.innerHTML = marked.parse(fullText);
+                            }
                             const metadata = JSON.parse(parts[1]);
                             updateUsageStats(metadata);
-                        } catch(e) {}
-                    } else {
-                        fullText += chunk;
-                        aiDiv.innerHTML = marked.parse(fullText);
-                        chatBox.scrollTop = chatBox.scrollHeight;
+                        } else {
+                            fullText += chunk;
+                            aiDiv.innerHTML = marked.parse(fullText);
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
                     }
+                } else {
+                    // Advanced API (v2) - Non-streaming (Gemini 등)
+                    const response = await fetch("/v1/chat", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            user_id: document.getElementById("p-user-id").value,
+                            message: message,
+                            model_name: selectedModelId,
+                            enable_web_search: document.getElementById("p-web-search").checked
+                        })
+                    });
+                    const result = await response.json();
+                    if (result && result.answer) {
+                        aiDiv.innerHTML = marked.parse(result.answer);
+                    } else {
+                        aiDiv.innerHTML = "답변을 가져오지 못했습니다.";
+                    }
+                    updateUsageStats(result.usage || { total_tokens: 0 });
+
+                    const metaDiv = document.createElement("div");
+                    metaDiv.style.cssText = "font-size:0.7rem; color:var(--text-sub); margin-top:10px; border-top:1px solid #ddd; padding-top:5px;";
+                    metaDiv.innerText = `Source: LiteLLM API | Model: ${result.model_used}`;
+                    aiDiv.appendChild(metaDiv);
                 }
-                // 최종 응답 후 하이라이팅 적용
-                aiDiv.querySelectorAll('pre code').forEach((el) => {
-                    hljs.highlightElement(el);
-                });
+
+                aiDiv.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
             } catch (error) {
                 chatBox.innerHTML += `<div style="color:red; font-size: 0.8rem; padding: 10px;">⚠️ 오류: ${error.message}</div>`;
             }
@@ -546,18 +711,12 @@
             document.getElementById("cur-total").innerText = data.total_tokens;
             accumulatedTokens += data.total_tokens;
             document.getElementById("total-tokens").innerText = accumulatedTokens.toLocaleString() + " Tokens";
-            document.getElementById("total-credit").innerText = (accumulatedTokens * COST_PER_TOKEN).toLocaleString(undefined, {minimumFractionDigits: 2}) + "원";
+            document.getElementById("total-credit").innerText = (accumulatedTokens * COST_PER_TOKEN).toLocaleString(undefined, { minimumFractionDigits: 2 }) + "원";
         }
 
         function handleFileSelect(input) {
             const files = input.files;
-            let displayText = "선택된 파일 없음";
-            if (files.length === 1) {
-                displayText = files[0].name;
-            } else if (files.length > 1) {
-                displayText = `${files.length}개의 파일 선택됨`;
-            }
-            document.getElementById("file-name-display").innerText = displayText;
+            document.getElementById("file-name-display").innerText = files.length > 0 ? `${files.length}개의 파일 선택됨` : "선택된 파일 없음";
             document.getElementById("upload-btn").disabled = files.length === 0;
         }
 
@@ -565,7 +724,6 @@
             const fileInput = document.getElementById("file-input");
             const uploadBtn = document.getElementById("upload-btn");
             const statusBox = document.getElementById("upload-status");
-            
             if (fileInput.files.length === 0) return;
 
             const formData = new FormData();
@@ -573,31 +731,21 @@
                 formData.append("files", fileInput.files[i]);
             }
 
-            uploadBtn.disabled = true;
             uploadBtn.innerText = "⏳ 인덱싱 중...";
-            statusBox.style.color = "var(--text-sub)";
-            statusBox.innerText = `${fileInput.files.length}개의 파일을 분석하고 있습니다...`;
-
             try {
-                const response = await fetch("/v1/files/upload", {
-                    method: "POST",
-                    body: formData
-                });
-                
+                const response = await fetch("/v1/files/upload", { method: "POST", body: formData });
                 const result = await response.json();
-                const successCount = result.details.filter(d => d.status === "success").length;
-                statusBox.innerText = `✅ 총 ${result.details.length}개 중 ${successCount}개 인덱싱 성공!`;
+                statusBox.innerText = `✅ 인덱싱 완료!`;
                 statusBox.style.color = "green";
                 fileInput.value = "";
-                document.getElementById("file-name-display").innerText = "선택된 파일 없음";
             } catch (error) {
-                statusBox.innerText = "❌ 업로드 실패: " + error.message;
+                statusBox.innerText = "❌ 업로드 실패";
                 statusBox.style.color = "red";
             } finally {
-                uploadBtn.disabled = true;
                 uploadBtn.innerText = "업로드 및 인덱싱";
             }
         }
     </script>
 </body>
+
 </html>

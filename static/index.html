@@ -254,6 +254,52 @@
             background: #d2d2d7;
             border-radius: 10px;
         }
+
+        /* Toggle Switch 스타일 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider-toggle {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider-toggle:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-toggle {
+            background-color: var(--primary-blue);
+        }
+
+        input:checked + .slider-toggle:before {
+            transform: translateX(20px);
+        }
     </style>
     <!-- Markdown & Syntax Highlighting -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -326,6 +372,26 @@
         </div>
 
         <div class="sidebar">
+            <!-- 파일 업로드 추가 -->
+            <div class="widget-card" style="border-bottom:1px solid #eee; padding-bottom:20px;">
+                <h3>📁 File Upload (RAG)</h3>
+                <div class="setting-item">
+                    <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)" multiple>
+                    <button class="send-btn" style="width:100%; border-radius:8px; height:auto; padding:10px;" onclick="document.getElementById('file-input').click()">
+                        파일 선택 (여러개 가능)
+                    </button>
+                    <div id="file-name-display" class="setting-desc" style="margin-top:8px; font-weight:bold; color:var(--primary-blue);">
+                        선택된 파일 없음
+                    </div>
+                </div>
+                <button id="upload-btn" class="send-btn" style="width:100%; border-radius:8px; height:auto; padding:10px; background:var(--text-main);" onclick="uploadFile()" disabled>
+                    업로드 및 인덱싱
+                </button>
+                <div id="upload-status" class="setting-desc" style="margin-top:8px; text-align:center;">
+                    PDF, TXT, CSV 파일을 업로드할 수 있습니다.
+                </div>
+            </div>
+
             <div class="widget-card">
                 <h3>⚙️ Inference Settings</h3>
                 <div class="setting-item">
@@ -363,6 +429,17 @@
                     <input type="range" id="p-rep" min="1.0" max="1.5" step="0.05" value="1.1"
                         oninput="document.getElementById('v-rep').innerText=this.value">
                     <div class="setting-desc">AI가 같은 단어나 문장을 반복해서 말하는 현상을 패널티를 주어 방지합니다.</div>
+                </div>
+                <!-- RAG & Web Search Toggle -->
+                <div class="setting-item" style="border-top:1px solid #eee; padding-top:20px;">
+                    <div class="setting-label-row">
+                        <span>External Web Search</span>
+                        <label class="switch">
+                            <input type="checkbox" id="p-web-search">
+                            <span class="slider-toggle round"></span>
+                        </label>
+                    </div>
+                    <div class="setting-desc">내부 데이터에 답이 없을 경우 실시간 웹 검색(DuckDuckGo)을 통해 답변을 보완합니다.</div>
                 </div>
             </div>
 
@@ -405,7 +482,8 @@
                 max_tokens: parseInt(document.getElementById("p-tokens").value),
                 temp: parseFloat(document.getElementById("p-temp").value),
                 top_p: parseFloat(document.getElementById("p-top-p").value),
-                repetition_penalty: parseFloat(document.getElementById("p-rep").value)
+                repetition_penalty: parseFloat(document.getElementById("p-rep").value),
+                enable_web_search: document.getElementById("p-web-search").checked
             };
 
             chatBox.innerHTML += `<div class="msg user">${message}</div>`;
@@ -469,6 +547,56 @@
             accumulatedTokens += data.total_tokens;
             document.getElementById("total-tokens").innerText = accumulatedTokens.toLocaleString() + " Tokens";
             document.getElementById("total-credit").innerText = (accumulatedTokens * COST_PER_TOKEN).toLocaleString(undefined, {minimumFractionDigits: 2}) + "원";
+        }
+
+        function handleFileSelect(input) {
+            const files = input.files;
+            let displayText = "선택된 파일 없음";
+            if (files.length === 1) {
+                displayText = files[0].name;
+            } else if (files.length > 1) {
+                displayText = `${files.length}개의 파일 선택됨`;
+            }
+            document.getElementById("file-name-display").innerText = displayText;
+            document.getElementById("upload-btn").disabled = files.length === 0;
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById("file-input");
+            const uploadBtn = document.getElementById("upload-btn");
+            const statusBox = document.getElementById("upload-status");
+            
+            if (fileInput.files.length === 0) return;
+
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append("files", fileInput.files[i]);
+            }
+
+            uploadBtn.disabled = true;
+            uploadBtn.innerText = "⏳ 인덱싱 중...";
+            statusBox.style.color = "var(--text-sub)";
+            statusBox.innerText = `${fileInput.files.length}개의 파일을 분석하고 있습니다...`;
+
+            try {
+                const response = await fetch("/v1/files/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                
+                const result = await response.json();
+                const successCount = result.details.filter(d => d.status === "success").length;
+                statusBox.innerText = `✅ 총 ${result.details.length}개 중 ${successCount}개 인덱싱 성공!`;
+                statusBox.style.color = "green";
+                fileInput.value = "";
+                document.getElementById("file-name-display").innerText = "선택된 파일 없음";
+            } catch (error) {
+                statusBox.innerText = "❌ 업로드 실패: " + error.message;
+                statusBox.style.color = "red";
+            } finally {
+                uploadBtn.disabled = true;
+                uploadBtn.innerText = "업로드 및 인덱싱";
+            }
         }
     </script>
 </body>

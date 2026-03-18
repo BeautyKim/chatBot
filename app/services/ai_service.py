@@ -10,6 +10,9 @@ from typing import AsyncGenerator, Dict, List
 from mlx_lm import stream_generate
 from mlx_lm.sample_utils import make_sampler, make_logits_processors
 
+from app.services.rag_service import rag_service
+from app.services.search_service import search_service
+
 logger = logging.getLogger("ai_service")
 
 # 애플리케이션 상태를 저장하는 전역 변수 (모델 및 토크나이저)
@@ -25,7 +28,8 @@ class AIService:
         max_tokens: int,
         temp: float,
         top_p: float,
-        repetition_penalty: float
+        repetition_penalty: float,
+        enable_web_search: bool = False
     ) -> AsyncGenerator[str, None]:
         """
         AI 모델을 통해 답변을 생성하고 스트림 형태로 반환합니다.
@@ -38,8 +42,28 @@ class AIService:
         tokenizer = state["tokenizer"]
         model = state["model"]
 
+        # RAG 및 웹 검색을 통한 컨텍스트 강화
+        user_query = messages[-1]["content"] if messages else ""
+        internal_context = rag_service.query_internal(user_query)
+        web_context = ""
+        
+        if enable_web_search:
+            web_context = await search_service.search_web(user_query)
+
+        # 컨텍스트가 있으면 시스템 메시지나 대화 내용에 삽입
+        enriched_messages = messages.copy()
+        context_str = ""
+        if internal_context:
+            context_str += f"\n[내부 데이터 참고]:\n{internal_context}\n"
+        if web_context:
+            context_str += f"\n[웹 검색 결과 참고]:\n{web_context}\n"
+        
+        if context_str:
+            # 마지막 사용자 메시지 앞에 컨텍스트 정보를 추가하여 AI가 참고하게 함
+            enriched_messages[-1]["content"] = f"정보 참고: {context_str}\n\n질문: {user_query}"
+
         # 채팅 템플릿 적용
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        prompt = tokenizer.apply_chat_template(enriched_messages, tokenize=False, add_generation_prompt=True)
         
         # 보정 파라미터 적용을 위한 유틸리티 생성
         sampler = make_sampler(temp, top_p)

@@ -11,7 +11,11 @@ from fastapi.responses import FileResponse
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.lifespan import lifespan
+from dotenv import load_dotenv
 import os
+
+# .env 파일의 환경 변수 로드
+load_dotenv()
 
 # FastAPI 인스턴스 생성 및 라이프사이클 관리 연결
 app = FastAPI(title=settings.API_TITLE, lifespan=lifespan)

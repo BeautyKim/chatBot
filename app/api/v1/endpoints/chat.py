@@ -22,7 +22,8 @@ async def chat_endpoint(request: ChatRequest):
         max_tokens=request.max_tokens,
         temp=request.temp,
         top_p=request.top_p,
-        repetition_penalty=request.repetition_penalty
+        repetition_penalty=request.repetition_penalty,
+        enable_web_search=request.enable_web_search
     )
     
     return StreamingResponse(generator, media_type="text/plain")

@@ -6,8 +6,10 @@ v1, v2 등 API 버전 확장이 용이하도록 구성합니다.
 
 from fastapi import APIRouter
 from app.api.v1.endpoints import chat
+from app.api.v1.endpoints import files
 
 api_router = APIRouter()
 
 # v1 엔드포인트를 등록 (프리픽스 /v1 추가)
 api_router.include_router(chat.router, prefix="/v1/chat", tags=["chat"])
+api_router.include_router(files.router, prefix="/v1/files", tags=["files"])

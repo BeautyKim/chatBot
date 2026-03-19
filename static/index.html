@@ -638,67 +638,51 @@
                 aiDiv.innerHTML = "...";
                 chatBox.appendChild(aiDiv);
 
-                if (selectedModelId === 'local') {
-                    // Standard Core API (Local Engine) - Streaming
-                    const response = await fetch("/v1/chat/completions", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            messages: [
-                                { "role": "system", "content": "당신은 틸론(Tilon)의 전문가입니다. 로컬 데이터에 기반하여 답변하세요." },
-                                { "role": "user", "content": message }
-                            ],
-                            enable_web_search: document.getElementById("p-web-search").checked
-                        })
-                    });
+                const endpoint = selectedModelId === 'local' ? '/v1/chat/local' : '/v1/chat/cloud';
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        messages: [
+                            { role: "system", content: "당신은 틸론(Tilon)의 전문가입니다. 로컬 데이터에 기반하여 답변하세요." },
+                            { role: "user", content: message }
+                        ],
+                        model_name: selectedModelId,
+                        user_id: document.getElementById("p-user-id").value || "anonymous",
+                        enable_web_search: document.getElementById("p-web-search").checked
+                    })
+                });
 
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let fullText = "";
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+                let buffer = "";
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                        const chunk = decoder.decode(value, { stream: true });
-                        if (chunk.includes("[METADATA]")) {
-                            const parts = chunk.split("[METADATA]");
-                            if (parts[0]) {
-                                fullText += parts[0];
-                                aiDiv.innerHTML = marked.parse(fullText);
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop(); // 마지막 불완전한 줄은 다음 루프로
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        const chunk = JSON.parse(line);
+                        if (chunk.done) {
+                            if (chunk.usage) updateUsageStats(chunk.usage);
+                            if (chunk.model_used) {
+                                const metaDiv = document.createElement("div");
+                                metaDiv.style.cssText = "font-size:0.7rem; color:var(--text-sub); margin-top:10px; border-top:1px solid #ddd; padding-top:5px;";
+                                metaDiv.innerText = `Model: ${chunk.model_used}`;
+                                aiDiv.appendChild(metaDiv);
                             }
-                            const metadata = JSON.parse(parts[1]);
-                            updateUsageStats(metadata);
                         } else {
-                            fullText += chunk;
+                            fullText += chunk.delta;
                             aiDiv.innerHTML = marked.parse(fullText);
                             chatBox.scrollTop = chatBox.scrollHeight;
                         }
                     }
-                } else {
-                    // Advanced API (v2) - Non-streaming (Gemini 등)
-                    const response = await fetch("/v1/chat", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            user_id: document.getElementById("p-user-id").value,
-                            message: message,
-                            model_name: selectedModelId,
-                            enable_web_search: document.getElementById("p-web-search").checked
-                        })
-                    });
-                    const result = await response.json();
-                    if (result && result.answer) {
-                        aiDiv.innerHTML = marked.parse(result.answer);
-                    } else {
-                        aiDiv.innerHTML = "답변을 가져오지 못했습니다.";
-                    }
-                    updateUsageStats(result.usage || { total_tokens: 0 });
-
-                    const metaDiv = document.createElement("div");
-                    metaDiv.style.cssText = "font-size:0.7rem; color:var(--text-sub); margin-top:10px; border-top:1px solid #ddd; padding-top:5px;";
-                    metaDiv.innerText = `Source: LiteLLM API | Model: ${result.model_used}`;
-                    aiDiv.appendChild(metaDiv);
                 }
 
                 aiDiv.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));

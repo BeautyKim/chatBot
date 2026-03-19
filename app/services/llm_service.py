@@ -1,14 +1,16 @@
 """
 [app/services/llm_service.py]
 LiteLLM 라이브러리를 사용하여 여러 AI 모델(API 기반)을 통일된 방식으로 호출합니다.
-Gemini 2.5 Flash(1.5 Flash 최신 버전 포함) 및 OpenAI 등 확장이 용이합니다.
+스트리밍 NDJSON 포맷으로 응답을 반환합니다.
 """
 
 import os
+import json
 import logging
 from datetime import datetime
+from typing import AsyncGenerator, List, Dict
 from litellm import completion
-from app.schemas.chat_v2 import Usage
+
 from app.services.rag_service import rag_service
 from app.services.search_service import search_service
 
@@ -20,88 +22,111 @@ if not logger.handlers:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+def _chunk(delta: str = "", done: bool = False, **kwargs) -> str:
+    return json.dumps({"delta": delta, "done": done, **kwargs}, ensure_ascii=False) + "\n"
+
+def _map_model(model_name: str) -> str:
+    if "gemini-3.1-lite" in model_name or "gemini-2.0-flash-lite" in model_name:
+        return "gemini/gemini-3.1-flash-lite-preview"
+    if "gemini-2.5-flash" in model_name:
+        return "gemini/gemini-2.5-flash"
+    return model_name
+
 class LLMService:
     def __init__(self):
-        # 환경 변수 로딩 재확인 (v2 용)
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         if not self.google_api_key:
-            logger.warning("⚠️ GOOGLE_API_KEY가 설정되지 않았습니다. Gemini 호출이 실패할 수 있습니다.")
+            logger.warning("⚠️ GOOGLE_API_KEY가 설정되지 않았습니다.")
 
-    async def get_chat_response(self, user_id: str, message: str, model_name: str, enable_web_search: bool = False) -> dict:
-        """
-        RAG 및 웹 검색 결과와 함께 AI 답변을 생성합니다.
-        """
-        logger.info(f"🤖 [LLM] Calling model {model_name} for user {user_id} (Web Search: {enable_web_search})")
-        
-        # 1. RAG(문서) 및 웹 검색 컨텍스트 가져오기
-        internal_context = rag_service.query_internal(message)
+    async def _build_messages(self, messages: List[Dict], enable_web_search: bool) -> List[Dict]:
+        """RAG/웹 검색 컨텍스트를 포함한 최종 메시지 목록을 구성합니다."""
+        user_query = messages[-1]["content"] if messages else ""
+
+        internal_context = rag_service.query_internal(user_query)
         web_context = ""
         if enable_web_search:
-            web_context = await search_service.search_web(message)
-            
-        # 2. 컨텍스트를 포함한 최종 프롬프트 구성
+            web_context = await search_service.search_web(user_query)
+
         context_str = ""
         if internal_context:
             context_str += f"\n[내부 데이터 참고]:\n{internal_context}\n"
         if web_context:
             context_str += f"\n[웹 검색 결과 참고]:\n{web_context}\n"
-            
-        final_message = message
+
+        enriched = list(messages)
         if context_str:
-            final_message = f"다음 정보를 참고해서 답변해줘.\n{context_str}\n\n사용자 질문: {message}"
-            
-        # 모델명 매핑 보정 (최신 2.5 / 3.1 대응)
-        mapped_model = model_name
-        if "gemini-3.1-lite" in model_name or "gemini-2.0-flash-lite" in model_name:
-            # 2.0 지원 종료에 따라 3.1 프리뷰로 연결
-            mapped_model = "gemini/gemini-3.1-flash-lite-preview"
-        elif "gemini-2.5-flash" in model_name:
-            mapped_model = "gemini/gemini-2.5-flash"
-     
-        
-        # 3. 시스템 프롬프트 및 시간 정보 구성
-        # 요일 정보를 포함하여 AI가 날짜를 더 정확하게 인지하도록 함
+            enriched[-1] = {
+                **enriched[-1],
+                "content": f"다음 정보를 참고해서 답변해줘.\n{context_str}\n\n사용자 질문: {user_query}"
+            }
+        return enriched
+
+    def _system_message(self) -> Dict:
         now = datetime.now()
         days_ko = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
         day_name = days_ko[now.weekday()]
         now_str = now.strftime(f'%Y년 %m월 %d일 {day_name} %H시 %M분 %S초')
-        system_instruction = (
-     f"당신은 친절하고 능동적인 AI 조언자이며, 현재 시각은 [{now_str}] 임을 알고 있습니다.\n"
-            f"- 현재 시각은 답변의 맥락(밤 인지, 점심 시간인지 등)을 이해하는 용도로만 참고하세요.\n"
-            f"- 사용자가 시간을 직접 묻지 않는 한, 매번 현재 시각을 문자 그대로 답변에 포함하지 마세요.\n"
-            f"- 대신 분위기에 맞춰 '좋은 오후네요!', '늦은 밤까지 고생 많으세요' 화법을 사용하고, 대화를 이어갈 수 있는 제안을 덧붙여 주세요."
+        return {
+            "role": "system",
+            "content": (
+                f"당신은 친절하고 능동적인 AI 조언자이며, 현재 시각은 [{now_str}] 임을 알고 있습니다.\n"
+                f"- 현재 시각은 답변의 맥락을 이해하는 용도로만 참고하세요.\n"
+                f"- 사용자가 시간을 직접 묻지 않는 한, 현재 시각을 문자 그대로 답변에 포함하지 마세요.\n"
+                f"- 분위기에 맞춰 '좋은 오후네요!', '늦은 밤까지 고생 많으세요' 화법을 사용하고, 대화를 이어갈 수 있는 제안을 덧붙여 주세요."
+            )
+        }
+
+    async def stream_chat_response(
+        self,
+        messages: List[Dict],
+        model_name: str,
+        user_id: str = None,
+        enable_web_search: bool = False
+    ) -> AsyncGenerator[str, None]:
+        """LiteLLM 스트리밍 응답을 NDJSON 포맷으로 yield합니다."""
+        mapped_model = _map_model(model_name)
+        logger.info(f"🤖 [LLM] Streaming {mapped_model} (user={user_id}, web_search={enable_web_search})")
+
+        enriched = await self._build_messages(
+            [m if isinstance(m, dict) else m.model_dump() for m in messages],
+            enable_web_search
         )
+        final_messages = [self._system_message(), *enriched]
 
         try:
-            # LiteLLM 호출 (시스템 프롬프트 추가)
             response = completion(
                 model=mapped_model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": final_message}
-                ],
-                api_key=self.google_api_key
+                messages=final_messages,
+                api_key=self.google_api_key,
+                stream=True
             )
-            logger.info(f"✨ [LLM] Response received from {mapped_model}")
-            logger.info(f"📊 [Usage] Tokens: Prompt={response.usage.prompt_tokens}, Completion={response.usage.completion_tokens}, Total={response.usage.total_tokens}")
-            # 전체 응답 구조가 궁금할 경우를 위해 한 줄로 남겨둠
-            logger.debug(f"📦 [Full Response] {response}")
-            
-            answer = response.choices[0].message.content
-            usage_info = response.usage
-            
-            return {
-                "answer": answer,
-                "usage": Usage(
-                    prompt_tokens=usage_info.prompt_tokens,
-                    completion_tokens=usage_info.completion_tokens,
-                    total_tokens=usage_info.total_tokens
-                ),
-                "model_used": mapped_model
-            }
-            
+
+            prompt_tokens = 0
+            completion_tokens = 0
+
+            for chunk in response:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    yield _chunk(delta=delta)
+
+                # 마지막 청크에서 usage 수집 (provider마다 다를 수 있음)
+                if hasattr(chunk, "usage") and chunk.usage:
+                    prompt_tokens = chunk.usage.prompt_tokens or 0
+                    completion_tokens = chunk.usage.completion_tokens or 0
+
+            yield _chunk(
+                done=True,
+                usage={
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens
+                },
+                model_used=mapped_model
+            )
+            logger.info(f"✨ [LLM] Stream complete — tokens: {prompt_tokens}+{completion_tokens}")
+
         except Exception as e:
-            logger.error(f"❌ LiteLLM 호출 중 오류 발생: {e}")
-            raise Exception(f"AI 모델({mapped_model}) 응답 생성 실패: {str(e)}")
+            logger.error(f"❌ LiteLLM 스트리밍 오류: {e}")
+            yield _chunk(delta=f"오류가 발생했습니다: {str(e)}", done=True)
 
 llm_service = LLMService()

@@ -13,6 +13,9 @@ from mlx_lm.sample_utils import make_sampler, make_logits_processors
 from app.services.rag_service import rag_service
 from app.services.search_service import search_service
 
+def _chunk(delta: str = "", done: bool = False, **kwargs) -> str:
+    return json.dumps({"delta": delta, "done": done, **kwargs}, ensure_ascii=False) + "\n"
+
 logger = logging.getLogger("ai_service")
 
 # 애플리케이션 상태를 저장하는 전역 변수 (모델 및 토크나이저)
@@ -36,7 +39,7 @@ class AIService:
         마지막에 토큰 사용량 메타데이터를 포함합니다.
         """
         if not state["model"] or not state["tokenizer"]:
-            yield "❌ 모델이 로드되지 않았습니다."
+            yield _chunk(delta="❌ 모델이 로드되지 않았습니다.", done=True)
             return
 
         tokenizer = state["tokenizer"]
@@ -93,17 +96,19 @@ class AIService:
                     should_stop = True
             
             if text:
-                yield text
-            
+                yield _chunk(delta=text)
+
             if should_stop:
                 break
 
-        # 스트림 종료 후 토큰 사용량 메타데이터 전송
+        # 스트림 종료 후 usage 포함 마지막 청크 전송
         if last_chunk:
-            usage_metadata = {
-                "prompt_tokens": last_chunk.prompt_tokens,
-                "generation_tokens": last_chunk.generation_tokens,
-                "total_tokens": last_chunk.prompt_tokens + last_chunk.generation_tokens
-            }
-            # 프론트엔드에서 구분할 수 있도록 특수 태그 사용
-            yield f"[METADATA]{json.dumps(usage_metadata)}"
+            yield _chunk(
+                done=True,
+                usage={
+                    "prompt_tokens": last_chunk.prompt_tokens,
+                    "completion_tokens": last_chunk.generation_tokens,
+                    "total_tokens": last_chunk.prompt_tokens + last_chunk.generation_tokens
+                },
+                model_used="local"
+            )
